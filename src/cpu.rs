@@ -1,3 +1,12 @@
+/*
+NES 6502的内存空间
+[0x0000, 0x1FFF ]  CPU RAM
+[0x2000, 0x401F ]  IO/Registers
+[0x4020, 0x5FFF ]  特殊的扩展空间
+[0x6000, 0x7FFF ]  磁带上的RAM, 用于检测游戏状态或存储
+[0x8000, 0xFFFF ]  游戏ROM映射空间
+*/
+
 pub struct CPU {
     pub register_a : u8,
     pub register_x : u8, 
@@ -27,7 +36,7 @@ impl CPU {
 
     pub fn load_and_run(&mut self, program:Vec<u8>){
         self.load(program);
-        // self.run() TODO
+        self.run() 
     }
 
     pub fn load(&mut self, program:Vec<u8>){
@@ -74,6 +83,20 @@ impl CPU {
         }
         
     }
+
+    pub fn run(&mut self){
+        // 运行ROM中的代码, 这是通过内存的方式读取
+        loop {
+            let opscode = self.mem_read(self.program_counter);
+            self.program_counter += 1;
+            match opscode {
+                _ => todo!()
+            }
+        }
+
+    }
+
+
     pub fn update_zero_and_negative_flags(&mut self, register_value:u8) {
         if register_value == 0b0000_0000 {
             self.status = self.status | 0b0000_0010; // 修改ZeroFlag位为 1
