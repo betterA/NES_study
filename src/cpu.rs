@@ -82,7 +82,22 @@ impl CPU {
         self.mem_write_u16(0xFFFC, 0x8000);
     }
 
+    // 命令
+    fn lda(&mut self, value: u8){
+        self.register_a = value; // 将参数LOAD 到 累加器A上
+        // 更新 处理器状态寄存器P的 bit 1 - Zero Flag and bit 7 - Negative Flag
+        self.update_zero_and_negative_flags(self.register_a);
+    }
 
+    fn inx(&mut self) { // INX 指令 1字节  对X寄存器加一
+        self.register_x = self.register_x.wrapping_add(1); // over_flow的捕捉
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn tax(&mut self){ // TAX 1字节 将值从 A 复制到 X，并更新状态寄存器
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
     // 解释
     // 1. 从指令寄存器中获取下一条执行命令
     // 解码指令-> 执行指令-> 重复循环
@@ -97,23 +112,12 @@ impl CPU {
                 0xA9 =>{ // LDA指令为两字节， 一字节是操作码本身，一字节是参数
                     let param = self.mem_read(self.program_counter);
                     self.program_counter += 1;
-                    self.register_a = param; // 将参数LOAD 到 累加器A上
-                    // 更新 处理器状态寄存器P的 bit 1 - Zero Flag and bit 7 - Negative Flag
-                    self.update_zero_and_negative_flags(self.register_a);
+                    self.lda(param);
+                    
                 }
-                0xE8 =>{ // INX 指令 1字节  对X寄存器加一
-                    self.register_x = self.register_x.wrapping_add(1); // over_flow的捕捉
-                    self.update_zero_and_negative_flags(self.register_x);
-
-                }
-                0xAA => {  // TAX 1字节 将值从 A 复制到 X，并更新状态寄存器
-                    self.register_x = self.register_a;
-                    self.update_zero_and_negative_flags(self.register_x);
-
-                }
-                0x00 => { // BRK 指令 
-                    return;
-                }
+                0xE8 =>self.inx(),
+                0xAA => self.tax(),
+                0x00 => return,  // BRK 命令
                 _ => todo!()
             }
 
