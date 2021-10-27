@@ -18,7 +18,8 @@ pub struct CPU {
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
-pub enum AddressingMode { // 声明不同的寻找方式，不同的寻址方式支持的内存也有所不同
+pub enum AddressingMode {
+    // 声明不同的寻找方式，不同的寻址方式支持的内存也有所不同
     Immediate,
     ZeroPage,
     ZeroPage_X,
@@ -100,10 +101,44 @@ impl CPU {
     }
 
     // 命令
-    fn lda(&mut self, value: u8) {
+    fn lda(&mut self, mode: &AddressingMode) {
+        /*
+                LDA (LoaD Accumulator)
+        Affects Flags: N Z
+
+        MODE           SYNTAX       HEX LEN TIM
+        Immediate     LDA #$44      $A9  2   2
+        Zero Page     LDA $44       $A5  2   3
+        Zero Page,X   LDA $44,X     $B5  2   4
+        Absolute      LDA $4400     $AD  3   4
+        Absolute,X    LDA $4400,X   $BD  3   4+
+        Absolute,Y    LDA $4400,Y   $B9  3   4+
+        Indirect,X    LDA ($44,X)   $A1  2   6
+        Indirect,Y    LDA ($44),Y   $B1  2   5+
+         */
+        let addr = self.get_operand_address(mode); // 寻址方式的修改
+        let value = self.mem_read(addr);
+
         self.register_a = value; // 将参数LOAD 到 累加器A上
                                  // 更新 处理器状态寄存器P的 bit 1 - Zero Flag and bit 7 - Negative Flag
         self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn sta(&mut self, mode: &AddressingMode) {
+        /*
+                STA (STore Accumulator)
+        Affects Flags: none
+
+        MODE           SYNTAX       HEX LEN TIM
+        Zero Page     STA $44       $85  2   3
+        Zero Page,X   STA $44,X     $95  2   4
+        Absolute      STA $4400     $8D  3   4
+        Absolute,X    STA $4400,X   $9D  3   5
+        Absolute,Y    STA $4400,Y   $99  3   5
+        Indirect,X    STA ($44,X)   $81  2   6
+        Indirect,Y    STA ($44),Y   $91  2   6 */
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a)
     }
 
     fn inx(&mut self) {
@@ -128,11 +163,27 @@ impl CPU {
             self.program_counter += 1;
 
             match opscode {
+                /* LDA */
                 0xA9 => {
-                    // LDA指令为两字节， 一字节是操作码本身，一字节是参数
-                    let param = self.mem_read(self.program_counter);
+                    self.lda(&AddressingMode::Immediate);
                     self.program_counter += 1;
-                    self.lda(param);
+                }
+                0xA5 => {
+                    self.lda(&AddressingMode::ZeroPage);
+                    self.program_counter += 1;
+                }
+                0xB5 => {
+                    self.lda(&AddressingMode::ZeroPage_X);
+                    self.program_counter += 1;
+                }
+                0xAD => {
+                    self.lda(&AddressingMode::Absolute);
+                    self.program_counter += 2;
+                }
+                /* STA */
+                0x85 => {
+                    self.sta(&AddressingMode::ZeroPage);
+                    self.program_counter += 1;
                 }
                 0xE8 => self.inx(),
                 0xAA => self.tax(),
@@ -156,14 +207,13 @@ impl CPU {
             self.status = self.status & 0b0111_1111; // 为负数  修改NegativeFlag为 0
         }
     }
-    
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
 
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
-            AddressingMode::ZeroPage  => self.mem_read(self.program_counter) as u16,
+            AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
             AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
-          
+
             AddressingMode::ZeroPage_X => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_x) as u16;
@@ -203,12 +253,11 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
-           
+
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
             }
         }
-
     }
 }
 
@@ -262,5 +311,13 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1)
+    }
+
+    #[test]
+    fn test_lda_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10, 0x55);
+        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
+        assert_eq!(cpu.register_a, 0x55);
     }
 }
