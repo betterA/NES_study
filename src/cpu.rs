@@ -6,7 +6,8 @@ NES 6502的内存空间
 [0x6000, 0x7FFF ]  磁带上的RAM, 用于检测游戏状态或存储
 [0x8000, 0xFFFF ]  游戏ROM映射空间
 */
-
+use std::collections::HashMap;
+use crate::opscodes;
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
@@ -158,37 +159,30 @@ impl CPU {
     // program 是内存器
     pub fn run(&mut self) {
         // 运行ROM中的代码, 这是通过内存的方式读取
+        let ref opcodes:HashMap<u8, &'static opscodes::OpCode> = *opscodes::OPCODES_MAP;
         loop {
-            let opscode = self.mem_read(self.program_counter);
+            let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
+            let program_counter_state = self.program_counter;
 
-            match opscode {
-                /* LDA */
-                0xA9 => {
-                    self.lda(&AddressingMode::Immediate);
-                    self.program_counter += 1;
-                }
-                0xA5 => {
-                    self.lda(&AddressingMode::ZeroPage);
-                    self.program_counter += 1;
-                }
-                0xB5 => {
-                    self.lda(&AddressingMode::ZeroPage_X);
-                    self.program_counter += 1;
-                }
-                0xAD => {
-                    self.lda(&AddressingMode::Absolute);
-                    self.program_counter += 2;
-                }
+            let opcode = opcodes.get(&code).expect(&format!("OpCode {:x} is not recognized", code));
+
+            match code {
+                0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
+                    self.lda(&opcode.mode);
+                } 
                 /* STA */
-                0x85 => {
-                    self.sta(&AddressingMode::ZeroPage);
-                    self.program_counter += 1;
+                0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
+                    self.sta(&opcode.mode);
                 }
                 0xE8 => self.inx(),
                 0xAA => self.tax(),
                 0x00 => return, // BRK 命令
                 _ => todo!(),
+            }
+
+            if program_counter_state == self.program_counter {
+                self.program_counter += (opcode.len -1) as u16;
             }
         }
     }
