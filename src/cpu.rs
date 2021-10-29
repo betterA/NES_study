@@ -139,7 +139,16 @@ impl CPU {
         Indirect,X    STA ($44,X)   $81  2   6
         Indirect,Y    STA ($44),Y   $91  2   6 */
         let addr = self.get_operand_address(mode);
-        self.mem_write(addr, self.register_a)
+        self.mem_write(addr, self.register_a);
+    }
+
+    fn adc(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode); // 这个值加到 a 上面 // a=>只能 u8
+        let data = self.mem_read(addr);
+        self.register_a = self.register_a.wrapping_add(data);
+        self.update_zero_and_negative_flags(self.register_x);
+
+
     }
 
     fn inx(&mut self) {
@@ -175,6 +184,7 @@ impl CPU {
                 0x85 | 0x95 | 0x8d | 0x9d | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
                 }
+                0x69 => self.adc(&opcode.mode), 
                 0xE8 => self.inx(),
                 0xAA => self.tax(),
                 0x00 => return, // BRK 命令
@@ -314,4 +324,14 @@ mod test {
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
         assert_eq!(cpu.register_a, 0x55);
     }
+
+    #[test]
+    fn test_adc_from_data() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xff, 0xaa, 0xe8, 0x69, 0xc4, 0x00]);
+        assert_eq!(cpu.register_a, 0xc3);
+        assert_eq!(cpu.status, 0b1000_0001);
+    }
+
+
 }
